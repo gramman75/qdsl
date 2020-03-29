@@ -22,3 +22,6 @@ logging:
 
 
 
+decorator:
+  datasource:
+    enabled: true

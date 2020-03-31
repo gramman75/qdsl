@@ -2,16 +2,22 @@ package me.gramman75;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import me.gramman75.domain.Member;
 import me.gramman75.domain.QMember;
 import me.gramman75.domain.QTeam;
 import me.gramman75.domain.Team;
-import me.gramman75.repogitory.MemberRepository;
-import me.gramman75.repogitory.QueryRepository;
-import me.gramman75.repogitory.TeamRepository;
+//import me.gramman75.repogitory.MemberRepository;
+//import me.gramman75.repogitory.QueryRepository;
+//import me.gramman75.repogitory.TeamRepository;
+import me.gramman75.dto.MemberDto;
+import me.gramman75.dto.QMemberDto;
+import me.gramman75.dto.UserDto;
 import org.aspectj.lang.annotation.Before;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,14 +44,14 @@ import static org.assertj.core.api.Assertions.*;
 @Transactional
 public class QuerydslBasicTest {
 
-    @Autowired
-    MemberRepository memberRepository;
-
-    @Autowired
-    TeamRepository teamRepository;
-
-    @Autowired
-    QueryRepository queryRepository;
+//    @Autowired
+//    MemberRepository memberRepository;
+//
+//    @Autowired
+//    TeamRepository teamRepository;
+//
+//    @Autowired
+//    QueryRepository queryRepository;
 
     @PersistenceContext
     EntityManager em;
@@ -58,25 +64,31 @@ public class QuerydslBasicTest {
         Team teamA = new Team("teamA");
         Team teamB = new Team("teamB");
 
-        teamRepository.save(teamA);
-        teamRepository.save(teamB);
+//        teamRepository.save(teamA);
+//        teamRepository.save(teamB);
+        em.persist(teamA);
+        em.persist(teamB);
 
         Member member1 = new Member("member1", 10, teamA);
         Member member2 = new Member("member2", 20, teamA);
         Member member3 = new Member("member3", 30, teamB);
         Member member4 = new Member("member4", 40, teamB);
 
-        memberRepository.saveAll(new ArrayList<Member>(
-                Arrays.asList(member1, member2, member3, member4)
-        ));
+//        memberRepository.saveAll(new ArrayList<Member>(
+//                Arrays.asList(member1, member2, member3, member4)
+//        ));
+        em.persist(member1);
+        em.persist(member2);
+        em.persist(member3);
+        em.persist(member4);
 
     }
 
-    @Test
-    public void startQuerydsl(){
-        Member member = queryRepository.findByName("member1");
-        assertThat(member.getUsername()).isEqualTo("member1");
-    }
+//    @Test
+//    public void startQuerydsl(){
+//        Member member = queryRepository.findByName("member1");
+//        assertThat(member.getUsername()).isEqualTo("member1");
+//    }
 
     @Test
     public void 조건() {
@@ -126,13 +138,17 @@ public class QuerydslBasicTest {
 
     @Test
     public void 정렬(){
-        memberRepository.saveAll( new ArrayList<>
-            (Arrays.asList(
-                    new Member(null, 100),
-                    new Member("member5", 100),
-                    new Member("member6", 100)
-            )
-        ));
+//        memberRepository.saveAll( new ArrayList<>
+//            (Arrays.asList(
+//                    new Member(null, 100),
+//                    new Member("member5", 100),
+//                    new Member("member6", 100)
+//            )
+//        ));
+
+        em.persist(new Member(null, 100));
+        em.persist(new Member("member5", 100));
+        em.persist(new Member("member6", 100));
 
         List<Member> members =  query
                 .select(member)
@@ -210,8 +226,10 @@ public class QuerydslBasicTest {
 
     @Test
     public void 세타조인() {
-        memberRepository.save(new Member("teamA"));
-        memberRepository.save(new Member("teamB"));
+//        memberRepository.save(new Member("teamA"));
+//        memberRepository.save(new Member("teamB"));
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
 
         List<Tuple> result = query
                 .select(member, team)
@@ -318,5 +336,93 @@ public class QuerydslBasicTest {
 
         result.forEach(System.out::println);
     }
+
+    @Test
+    public void ProjectionSetter() {
+       
+        List<MemberDto> result = query
+                .select(
+                        Projections.bean(
+                                MemberDto.class,
+                                member.username,
+                                member.age,
+                                team.name.as("teamname"))
+                )
+                .from(member)
+                .leftJoin(member.team, team).fetchJoin()
+                .fetch();
+
+        result.forEach(System.out::println);
+    }
+
+
+
+    @Test
+    public void ProjectionField() {
+        List<MemberDto> result = query
+                .select(
+                        Projections.fields(
+                                MemberDto.class,
+                                member.username,
+                                member.age)
+                )
+                .from(member)
+                .fetch();
+
+        result.forEach(System.out::println);
+    }
+
+
+    @Test
+    public void ProjectionConstructor() {
+        List<MemberDto> result = query
+                .select(
+                        Projections.constructor(
+                                MemberDto.class,
+                                member.username,
+                                member.age)
+                )
+                .from(member)
+                .fetch();
+
+        result.forEach(System.out::println);
+    }
+
+    @Test
+    public void ProjectionAlias() {
+        List<UserDto> result = query
+                .select(
+                        Projections.fields(
+                                UserDto.class,
+                                member.username.as("name"),
+                                member.age,
+                                ExpressionUtils.as(
+                                        select(team.name)
+                                                .from(team)
+                                                .where(member.team.id.eq(team.id)),
+                                        "teamname"
+                                )
+                        )
+                )
+                .from(member)
+                .fetch();
+
+        result.forEach(System.out::println);
+    }
+
+    @Test
+    public void QueryProjection(){
+        List<MemberDto> result = query
+                .select(new QMemberDto(member.username, member.age))
+                .from(member)
+                .fetch();
+        result.forEach(System.out::println);
+    }
+
+
+
+
+
+
 
 }

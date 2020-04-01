@@ -1,9 +1,11 @@
 package me.gramman75;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.ExpressionUtils;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
@@ -339,7 +341,7 @@ public class QuerydslBasicTest {
 
     @Test
     public void ProjectionSetter() {
-       
+
         List<MemberDto> result = query
                 .select(
                         Projections.bean(
@@ -413,11 +415,85 @@ public class QuerydslBasicTest {
     @Test
     public void QueryProjection(){
         List<MemberDto> result = query
-                .select(new QMemberDto(member.username, member.age))
+                .select(new QMemberDto(member.username, member.age, team.name))
                 .from(member)
+                .leftJoin(member.team, team)
                 .fetch();
         result.forEach(System.out::println);
     }
+
+    @Test
+    public void 동적쿼리_BooleanBuilder() {
+        BooleanBuilder builder = new BooleanBuilder();
+        String nameCond = "member1";
+        Integer ageCond = null;
+
+        if (nameCond != null){
+            builder.and(member.username.eq(nameCond));
+        }
+
+        if (ageCond != null) {
+            builder.and(member.age.eq(ageCond));
+        }
+
+        List<Member> result = query
+                .selectFrom(member)
+                .where(builder)
+                .fetch();
+
+        result.forEach(System.out::println);
+    }
+
+    @Test
+    public void 동적쿼리_WhereFrom() {
+        String name = "member1";
+        Integer age = null;
+
+        List<Member> result = query
+                .selectFrom(member)
+                .where(allEq(name, age))
+//                .where(nameEq(name), ageEq(age))
+                .fetch();
+
+        result.forEach(System.out::println);
+
+    }
+
+    private BooleanExpression allEq(String name, Integer age) {
+        return nameEq(name).and(ageEq(age));
+    }
+
+    private BooleanExpression nameEq(String name) {
+        return name != null ? member.username.eq(name) : null;
+    }
+
+    private BooleanExpression ageEq(Integer age) {
+        return age != null ? member.age.eq(age) : null;
+    }
+
+    @Test
+    public void bulkUpdate() {
+        long result = query
+                .update(member)
+                .set(member.age, member.age.add(1))
+                .where(member.username.eq("member1"))
+                .execute();
+
+
+        em.flush();
+        em.clear();
+
+        Member findMember = query
+                .selectFrom(member)
+                .where(member.username.eq("member1"))
+                .fetchOne();
+
+
+        assertThat(findMember.getAge()).isEqualTo(11);
+    }
+
+
+
 
 
 
